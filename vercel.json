@@ -15,8 +15,9 @@
   ],
   "functions": {
     "server/index.ts": {
-      "runtime": "nodejs20.x"
+      "runtime": "nodejs20"
     }
   }
+
 }
 
