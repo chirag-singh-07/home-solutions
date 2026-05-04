@@ -1,12 +1,21 @@
 {
+  "version": 2,
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "env": {
-    "NODE_ENV": "production"
-  },
+  "outputDirectory": "dist/public",
+  "rewrites": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
   "functions": {
     "server/index.ts": {
       "runtime": "nodejs20.x"
     }
   }
 }
+
