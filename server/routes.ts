@@ -2,8 +2,97 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { seedDatabase } from "./seed";
-import { insertServiceSchema, insertCategorySchema, insertBookingSchema } from "@shared/schema";
+import { insertServiceSchema, insertCategorySchema, insertBookingSchema } from "../shared/schema";
 import crypto from "crypto";
+
+const ADMIN_COOKIE_NAME = "hs_admin_auth";
+const ONE_DAY_SECONDS = 24 * 60 * 60;
+
+function parseCookies(cookieHeader?: string) {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+
+  for (const part of cookieHeader.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (!name) continue;
+    cookies[name] = decodeURIComponent(rest.join("="));
+  }
+
+  return cookies;
+}
+
+function getAdminSecret() {
+  return process.env.SESSION_SECRET || "hometriangle-secret-key-2026";
+}
+
+function signAdminToken(adminId: string) {
+  const signature = crypto
+    .createHmac("sha256", getAdminSecret())
+    .update(adminId)
+    .digest("hex");
+
+  return `${adminId}.${signature}`;
+}
+
+function verifyAdminToken(token?: string) {
+  if (!token) return null;
+
+  const lastDotIndex = token.lastIndexOf(".");
+  if (lastDotIndex <= 0) return null;
+
+  const adminId = token.slice(0, lastDotIndex);
+  const providedSignature = token.slice(lastDotIndex + 1);
+  const expectedSignature = crypto
+    .createHmac("sha256", getAdminSecret())
+    .update(adminId)
+    .digest("hex");
+
+  const providedBuffer = Buffer.from(providedSignature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return null;
+  }
+
+  return crypto.timingSafeEqual(providedBuffer, expectedBuffer) ? adminId : null;
+}
+
+function getAdminIdFromRequest(req: any) {
+  const cookies = parseCookies(req.headers.cookie);
+  return verifyAdminToken(cookies[ADMIN_COOKIE_NAME]);
+}
+
+function buildAdminCookie(token: string) {
+  const parts = [
+    `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${ONE_DAY_SECONDS}`,
+  ];
+
+  if (process.env.NODE_ENV === "production") {
+    parts.push("Secure");
+  }
+
+  return parts.join("; ");
+}
+
+function buildAdminLogoutCookie() {
+  const parts = [
+    `${ADMIN_COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
+
+  if (process.env.NODE_ENV === "production") {
+    parts.push("Secure");
+  }
+
+  return parts.join("; ");
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -134,7 +223,7 @@ export async function registerRoutes(
     const password = (req.body.password || "").trim();
     const user = await storage.getUserByUsername(username);
     if (user && user.role === "admin" && user.password === password) {
-      (req.session as any).adminId = user.id;
+      res.setHeader("Set-Cookie", buildAdminCookie(signAdminToken(user.id)));
       res.json({ success: true });
     } else {
       res.status(401).json({ error: "Invalid credentials" });
@@ -142,7 +231,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/admin/check", (req, res) => {
-    if ((req.session as any)?.adminId) {
+    if (getAdminIdFromRequest(req)) {
       res.json({ authenticated: true });
     } else {
       res.status(401).json({ authenticated: false });
@@ -150,12 +239,12 @@ export async function registerRoutes(
   });
 
   app.post("/api/admin/logout", (req, res) => {
-    req.session.destroy(() => {});
+    res.setHeader("Set-Cookie", buildAdminLogoutCookie());
     res.json({ success: true });
   });
 
   const requireAdmin = (req: any, res: any, next: any) => {
-    if ((req.session as any)?.adminId) {
+    if (getAdminIdFromRequest(req)) {
       next();
     } else {
       res.status(401).json({ error: "Unauthorized" });

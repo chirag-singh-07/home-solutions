@@ -6,7 +6,7 @@ import {
   type Booking, type InsertBooking,
   type Review, type InsertReview,
   type City, type InsertCity,
-} from "@shared/schema";
+} from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, sql } from "drizzle-orm";
 

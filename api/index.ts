@@ -1,16 +1,11 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
-import session from "express-session";
-import connectPg from "connect-pg-simple";
-import createMemoryStore from "memorystore";
-import { pool } from "../server/db";
 import { registerRoutes } from "../server/routes";
 import { serveStatic } from "../server/static";
 import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
-const MemoryStore = createMemoryStore(session);
 
 declare module "http" {
   interface IncomingMessage {
@@ -29,31 +24,6 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
-
-const PostgresStore = connectPg(session);
-app.use(
-  session({
-    store:
-      process.env.NODE_ENV === "development"
-        ? new MemoryStore({
-            checkPeriod: 24 * 60 * 60 * 1000,
-          })
-        : new PostgresStore({
-            pool,
-            tableName: "session",
-            createTableIfMissing: true,
-          }),
-    secret: process.env.SESSION_SECRET || "hometriangle-secret-key-2026",
-    resave: false,
-    saveUninitialized: false,
-    proxy: process.env.NODE_ENV === "production",
-    cookie: {
-      maxAge: 24 * 60 * 60 * 1000,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-    },
-  }),
-);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

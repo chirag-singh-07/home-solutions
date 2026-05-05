@@ -1,7 +1,7 @@
 import { storage } from "./storage";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
-import { users, serviceCategories, services, cities, reviews } from "@shared/schema";
+import { users, serviceCategories, services, cities, reviews } from "../shared/schema";
 
 export async function seedDatabase() {
   const existingUsers = await db.select().from(users).limit(1);
