@@ -9,7 +9,11 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  await seedDatabase();
+  try {
+    await seedDatabase();
+  } catch (error) {
+    console.error("Database seed failed during startup:", error);
+  }
 
   app.get("/api/categories", async (_req, res) => {
     const categories = await storage.getCategories();

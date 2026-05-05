@@ -2,6 +2,7 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import createMemoryStore from "memorystore";
 import { pool } from "../server/db";
 import { registerRoutes } from "../server/routes";
 import { serveStatic } from "../server/static";
@@ -9,12 +10,15 @@ import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+const MemoryStore = createMemoryStore(session);
 
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
   }
 }
+
+app.set("trust proxy", 1);
 
 app.use(
   express.json({
@@ -29,18 +33,24 @@ app.use(express.urlencoded({ extended: false }));
 const PostgresStore = connectPg(session);
 app.use(
   session({
-    store: new PostgresStore({
-      pool,
-      tableName: "session",
-      createTableIfMissing: true,
-    }),
+    store:
+      process.env.NODE_ENV === "development"
+        ? new MemoryStore({
+            checkPeriod: 24 * 60 * 60 * 1000,
+          })
+        : new PostgresStore({
+            pool,
+            tableName: "session",
+            createTableIfMissing: true,
+          }),
     secret: process.env.SESSION_SECRET || "hometriangle-secret-key-2026",
     resave: false,
     saveUninitialized: false,
-    cookie: { 
+    proxy: process.env.NODE_ENV === "production",
+    cookie: {
       maxAge: 24 * 60 * 60 * 1000,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax"
+      sameSite: "lax",
     },
   }),
 );
@@ -124,4 +134,3 @@ app.use((req, res, next) => {
 })();
 
 export default app;
-

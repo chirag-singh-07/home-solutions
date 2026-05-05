@@ -2,15 +2,22 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
 
-export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+const connectionString = process.env.DATABASE_URL;
+const looksLocalDatabase =
+  !connectionString ||
+  /localhost|127\.0\.0\.1/i.test(connectionString) ||
+  /sslmode=disable/i.test(connectionString);
 
+export const pool = new pg.Pool({
+  connectionString,
+  ssl: looksLocalDatabase
+    ? false
+    : {
+        rejectUnauthorized: false,
+      },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: parseInt(process.env.PG_CONNECTION_TIMEOUT_MS || "15000", 10),
 });
 
 
