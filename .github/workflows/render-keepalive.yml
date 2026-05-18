@@ -1,0 +1,23 @@
+name: Keep Render App Awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the live Render site
+        env:
+          DEFAULT_RENDER_URL: https://homessolution.online
+          RENDER_HEALTHCHECK_URL: ${{ vars.RENDER_HEALTHCHECK_URL }}
+          RENDER_HEALTHCHECK_URL_SECRET: ${{ secrets.RENDER_HEALTHCHECK_URL }}
+        run: |
+          URL="${RENDER_HEALTHCHECK_URL_SECRET:-${RENDER_HEALTHCHECK_URL:-$DEFAULT_RENDER_URL}}"
+          echo "Pinging $URL"
+          curl --fail --silent --show-error --max-time 30 "$URL" > /dev/null
